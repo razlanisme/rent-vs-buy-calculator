@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rent vs Buy Calculator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <script src="https://unpkg.com/alpinejs" defer></script>
+</head>
+<body class="bg-white text-gray-900 font-sans">
+  <div class="max-w-6xl mx-auto p-6" x-data="calculator()">
+    <h1 class="text-3xl font-bold mb-6">Rent vs Buy Calculator</h1>
+<p class="mb-6 text-lg" x-show="totalRent && totalBuyCost">After <span x-text="years"></span> years, you will have paid approximately <strong>RM <span x-text="Math.round(totalRent)"></span></strong> in rent, versus <strong>RM <span x-text="Math.round(totalBuyCost)"></span></strong> to own a home. Your net equity gain from buying would be <strong>RM <span x-text="Math.round(equityGained)"></span></strong>. <span x-show="totalRent > totalBuyCost">Buying may offer more long-term value.</span><span x-show="totalRent <= totalBuyCost">Renting could be more cost-effective in this period.</span></p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <h2 class="text-xl font-semibold mb-2">Renting</h2>
+        <label class="block mb-2">Monthly Rent
+          <input type="number" x-model.number="rent" class="w-full border p-2 rounded" />
+        </label>
+        <label class="block mb-2">Annual Rent Increase (%)
+          <input type="number" x-model.number="rentIncrease" class="w-full border p-2 rounded" />
+        </label>
+        <label class="block mb-2">Annual Rent Increase (MYR)
+          <input type="number" x-model.number="rentIncreaseMYR" class="w-full border p-2 rounded" />
+        </label>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold mb-2">Buying</h2>
+        <label class="block mb-2">Property Price
+          <input type="number" x-model.number="price" class="w-full border p-2 rounded" />
+        </label>
+        <label class="block mb-2">Down Payment (%)
+          <input type="number" x-model.number="downPaymentPct" class="w-full border p-2 rounded" />
+        </label>
+        <label class="block mb-2">Loan Term (years)
+          <input type="number" x-model.number="loanTerm" class="w-full border p-2 rounded" />
+        </label>
+        <label class="block mb-2">Interest Rate (%)
+          <input type="number" x-model.number="interestRate" class="w-full border p-2 rounded" />
+        </label>
+        <label class="block mb-2">Maintenance (% of property per year)
+          <input type="number" x-model.number="maintenancePct" class="w-full border p-2 rounded" />
+        </label>
+        <label class="block mb-2">Property Tax (%)
+          <input type="number" x-model.number="propertyTaxPct" class="w-full border p-2 rounded" />
+        </label>
+        <label class="block mb-2">Capital Appreciation (% annually)
+          <input type="number" x-model.number="capitalAppreciation" class="w-full border p-2 rounded" />
+        </label>
+      </div>
+    </div>
+
+    <div class="mt-6">
+      <label class="block mb-2">Years to Compare
+        <input type="number" x-model.number="years" class="w-full border p-2 rounded" />
+      </label>
+      <button @click="calculate" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded">Calculate</button>
+    </div>
+
+    <div class="mt-10">
+      <h2 class="text-2xl font-semibold mb-4">Results</h2>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div class="p-4 border rounded">
+          <p>Total Rent Paid</p>
+          <p class="text-xl font-bold">RM <span x-text="Math.round(totalRent)"></span></p>
+        </div>
+        <div class="p-4 border rounded">
+          <p>Total Buy Cost</p>
+          <p class="text-xl font-bold">RM <span x-text="Math.round(totalBuyCost)"></span></p>
+        </div>
+        <div class="p-4 border rounded">
+          <p>Monthly Mortgage Payment</p>
+          <p class="text-xl font-bold">RM <span x-text="Math.round(monthlyPayment)"></span></p>
+        </div>
+        <div class="p-4 border rounded">
+          <p>Net Equity Gained</p>
+          <p class="text-xl font-bold">RM <span x-text="Math.round(equityGained)"></span></p>
+        </div>
+      </div>
+      <div id="chart" class="mt-10"></div>
+      <div id="trendChart" class="mt-10"></div>
+    </div>
+  </div>
+
+  <script>
+    function calculator() {
+      return {
+        rent: 1500,
+        rentIncrease: 2,
+        rentIncreaseMYR: 0,
+        price: 400000,
+        downPaymentPct: 10,
+        loanTerm: 30,
+        interestRate: 4,
+        maintenancePct: 1,
+        propertyTaxPct: 1,
+        capitalAppreciation: 3,
+        years: 10,
+        totalRent: 0,
+        totalBuyCost: 0,
+        monthlyPayment: 0,
+        equityGained: 0,
+
+        calculate() {
+          let rentTotal = 0;
+          let rentMonthly = this.rent;
+          let rentTrend = [], buyCostTrend = [], equityTrend = [];
+
+          const downPayment = this.price * (this.downPaymentPct / 100);
+          const loanAmount = this.price - downPayment;
+          const r = this.interestRate / 100 / 12;
+          const n = this.loanTerm * 12;
+          const monthly = loanAmount * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1);
+
+          this.monthlyPayment = monthly;
+
+          let principalPaid = 0;
+          let remaining = loanAmount;
+          let buyCost = downPayment;
+
+          for (let i = 0; i < this.years; i++) {
+            rentTotal += rentMonthly * 12;
+            rentTrend.push(Math.round(rentTotal));
+
+            for (let j = 0; j < 12; j++) {
+              const interest = remaining * r;
+              const principal = monthly - interest;
+              principalPaid += principal;
+              remaining -= principal;
+            }
+
+            const maintenance = this.price * (this.maintenancePct / 100);
+            const tax = this.price * (this.propertyTaxPct / 100);
+            buyCost += monthly * 12 + maintenance + tax;
+            buyCostTrend.push(Math.round(buyCost));
+
+            let appreciation = this.price * Math.pow(1 + this.capitalAppreciation / 100, i + 1) - this.price;
+            equityTrend.push(Math.round(principalPaid + appreciation));
+
+            rentMonthly += rentMonthly * (this.rentIncrease / 100) + this.rentIncreaseMYR;
+          }
+
+          this.totalRent = rentTotal;
+          this.totalBuyCost = buyCost;
+          this.equityGained = principalPaid + (this.price * Math.pow(1 + this.capitalAppreciation / 100, this.years) - this.price);
+
+          this.renderChart();
+          this.renderTrendChart(rentTrend, buyCostTrend, equityTrend);
+        },
+
+        renderChart() {
+          const chartContainer = document.querySelector("#chart");
+          chartContainer.innerHTML = "";
+
+          const options = {
+            chart: {
+              type: 'bar',
+              height: 350
+            },
+            series: [{
+              name: 'Amount (RM)',
+              data: [this.totalRent, this.totalBuyCost, this.equityGained]
+            }],
+            dataLabels: {
+              formatter: function (val) {
+                return 'RM ' + Math.round(val).toLocaleString();
+              }
+            },
+            xaxis: {
+              categories: ['Total Rent Paid', 'Total Buy Cost', 'Equity Gained']
+            },
+            colors: ['#60a5fa', '#34d399', '#fbbf24']
+          };
+
+          const chart = new ApexCharts(chartContainer, options);
+          chart.render();
+        },
+
+        renderTrendChart(rentTrend, buyCostTrend, equityTrend) {
+          const container = document.querySelector("#trendChart");
+          container.innerHTML = "";
+
+          const options = {
+            chart: {
+              type: 'line',
+              height: 350
+            },
+            dataLabels: {
+              formatter: function (val) {
+                return 'RM ' + Math.round(val).toLocaleString();
+              }
+            },
+            series: [
+              { name: 'Rent Paid', data: rentTrend },
+              { name: 'Buy Cost', data: buyCostTrend },
+              { name: 'Equity Gained', data: equityTrend }
+            ],
+            xaxis: {
+              categories: Array.from({ length: this.years }, (_, i) => `Year ${i + 1}`)
+            },
+            colors: ['#3b82f6', '#10b981', '#f59e0b']
+          };
+
+          const chart = new ApexCharts(container, options);
+          chart.render();
+        }
+      }
+    }
+  </script>
+</body>
+</html>
